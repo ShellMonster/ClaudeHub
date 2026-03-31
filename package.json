@@ -1,0 +1,17 @@
+{
+  "name": "claude-code-navigation",
+  "version": "0.1.0",
+  "description": "Claude Code navigation tool",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "scan": "tsx src/index.ts",
+    "scan:incremental": "tsx src/index.ts --incremental"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "vitest": "^3.0.0",
+    "typescript": "^5.7.0"
+  }
+}
