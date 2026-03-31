@@ -18,7 +18,14 @@ const LEAK_KEYWORDS = [
   'leaked-claude-code',
   'source-map-leak',
   'deobfuscat',
+  'claude-code-source-code',
 ] as const;
+
+// ─── 泄露源仓库黑名单（精确匹配 owner/repo） ──────────────────
+const REPO_BLOCKLIST = new Set([
+  'sanbuphy/claude-code-source-code',
+  'Zen996007/claude-code-source-code',
+]);
 
 // ─── 分析类关键词（含这些关键词的仓库不会被排除） ──────────────
 const ANALYSIS_KEYWORDS = [
@@ -79,6 +86,11 @@ export function normalizeUrl(url: string): string {
  * 如果同时包含分析类关键词，则保留（分析仓库不排除）
  */
 function isLeakMirror(repo: GitHubRepo): boolean {
+  // 精确匹配黑名单仓库
+  if (REPO_BLOCKLIST.has(repo.full_name.toLowerCase())) {
+    return true;
+  }
+
   const textToCheck = [
     repo.name.toLowerCase(),
     (repo.description ?? '').toLowerCase(),
