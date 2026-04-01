@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateJson, stringifyJson } from '../src/output-json.js';
-import { generateReadme } from '../src/output-readme.js';
+import { generateReadme, formatStars, assignSubCategories } from '../src/output-readme.js';
 import type { CategorySection, NavItem, NavigationData } from '../src/types.js';
 
 function mockNavItem(overrides: Partial<NavItem> = {}): NavItem {
@@ -108,6 +108,64 @@ describe('stringifyJson', () => {
   });
 });
 
+describe('formatStars', () => {
+  it('should format stars >= 10000 with one decimal K', () => {
+    expect(formatStars(12345)).toBe('⭐12.3K');
+    expect(formatStars(10000)).toBe('⭐10K');
+  });
+
+  it('should format stars >= 1000 with one decimal K', () => {
+    expect(formatStars(1500)).toBe('⭐1.5K');
+    expect(formatStars(1000)).toBe('⭐1.0K');
+  });
+
+  it('should format stars < 1000 as exact number', () => {
+    expect(formatStars(999)).toBe('⭐999');
+    expect(formatStars(0)).toBe('⭐0');
+    expect(formatStars(42)).toBe('⭐42');
+  });
+});
+
+describe('assignSubCategories', () => {
+  it('should return flat list for categories without sub-categories', () => {
+    const items = [mockNavItem({ name: 'a', stars: 10 }), mockNavItem({ name: 'b', stars: 20 })];
+    const subs = assignSubCategories('other', items);
+    expect(subs).toHaveLength(1);
+    expect(subs[0].title).toBe('');
+    expect(subs[0].items).toHaveLength(2);
+  });
+
+  it('should sort items by stars descending within sub-categories', () => {
+    const items = [
+      mockNavItem({ name: 'low', stars: 10 }),
+      mockNavItem({ name: 'high', stars: 500 }),
+    ];
+    const subs = assignSubCategories('other', items);
+    expect(subs[0].items[0].name).toBe('high');
+    expect(subs[0].items[1].name).toBe('low');
+  });
+
+  it('should return empty array for empty items', () => {
+    const subs = assignSubCategories('source_analysis', []);
+    expect(subs).toEqual([]);
+  });
+
+  it('should create sub-categories for skill_plugin with hot items', () => {
+    const items = [
+      mockNavItem({ id: 'hot1', name: 'hot-skill', stars: 5000, tags: ['skill'] }),
+      mockNavItem({ id: 'mcp1', name: 'mcp-server', stars: 200, tags: ['mcp'] }),
+      mockNavItem({ id: 'reg1', name: 'regular-skill', stars: 50, tags: ['skill'] }),
+    ];
+    const subs = assignSubCategories('skill_plugin', items);
+    expect(subs.length).toBeGreaterThanOrEqual(2);
+    expect(subs[0].title).toContain('热门');
+    expect(subs[0].items[0].name).toBe('hot-skill');
+    const allNames = subs.flatMap((s) => s.items.map((i) => i.name));
+    expect(allNames).toContain('mcp-server');
+    expect(allNames).toContain('regular-skill');
+  });
+});
+
 describe('generateReadme', () => {
   function makeReadmeData(): NavigationData {
     return {
@@ -152,12 +210,69 @@ describe('generateReadme', () => {
     expect(readme).toContain('## 📚 教程指南');
   });
 
-  it('should contain tables with rank and score columns', () => {
+  it('should generate TOC with category links', () => {
     const readme = generateReadme(makeReadmeData());
-    expect(readme).toContain('| # | Repository | Description | Stars | Score |');
+    expect(readme).toContain('## Contents');
+    expect(readme).toContain('[🔬 源码分析]');
+    expect(readme).toContain('[📚 教程指南]');
   });
 
-  it('should mark archived repos with 📦', () => {
+  it('should generate sub-category headings with ###', () => {
+    const readme = generateReadme(makeReadmeData());
+    const h3Count = (readme.match(/^### /gm) || []).length;
+    expect(h3Count).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should format items as bullet lists', () => {
+    const readme = generateReadme(makeReadmeData());
+    expect(readme).toContain('- [repo-a]');
+    expect(readme).toContain('- [repo-b]');
+    expect(readme).toContain('- [tut-1]');
+  });
+
+  it('should not contain table rows with rank and score columns', () => {
+    const readme = generateReadme(makeReadmeData());
+    expect(readme).not.toContain('| # | Repository | Description | Stars | Score |');
+  });
+
+  it('should append 🔥 for repos with 1000+ stars', () => {
+    const readme = generateReadme(makeReadmeData());
+    const repoALine = readme.split('\n').find((line) => line.startsWith('- ') && line.includes('[repo-a]'));
+    expect(repoALine).toBeTruthy();
+    expect(repoALine!).toContain('🔥');
+  });
+
+  it('should not append 🔥 for repos with < 1000 stars', () => {
+    const readme = generateReadme(makeReadmeData());
+    const repoBLine = readme.split('\n').find((line) => line.includes('[repo-b]'));
+    expect(repoBLine).toBeTruthy();
+    expect(repoBLine!).not.toContain('🔥');
+  });
+
+  it('should format stars in compact notation', () => {
+    const data: NavigationData = {
+      generated_at: '2025-06-15T12:00:00Z',
+      source: 'github',
+      schema_version: '1.0.0',
+      categories: [
+        {
+          key: 'other',
+          label: '其他',
+          items: [
+            mockNavItem({ name: 'big-repo', stars: 12345 }),
+            mockNavItem({ name: 'mid-repo', stars: 1500 }),
+            mockNavItem({ name: 'small-repo', stars: 42 }),
+          ],
+        },
+      ],
+    };
+    const readme = generateReadme(data);
+    expect(readme).toContain('⭐12.3K');
+    expect(readme).toContain('⭐1.5K');
+    expect(readme).toContain('⭐42');
+  });
+
+  it('should mark archived repos with 📦 in bullet list', () => {
     const data: NavigationData = {
       generated_at: '2025-06-15T12:00:00Z',
       source: 'github',
@@ -173,10 +288,10 @@ describe('generateReadme', () => {
       ],
     };
     const readme = generateReadme(data);
-    expect(readme).toContain('📦 [archived-repo]');
+    expect(readme).toContain('- 📦 [archived-repo]');
   });
 
-  it('should truncate descriptions over 150 chars', () => {
+  it('should not truncate descriptions', () => {
     const longDesc = 'A'.repeat(250);
     const data: NavigationData = {
       generated_at: '2025-06-15T12:00:00Z',
@@ -193,9 +308,7 @@ describe('generateReadme', () => {
       ],
     };
     const readme = generateReadme(data);
-    const truncatedInReadme = readme.match(/\| \d+ \| \[long-desc\].*\| (.+?) \|/);
-    expect(truncatedInReadme).toBeTruthy();
-    expect(truncatedInReadme![1].length).toBeLessThanOrEqual(153);
+    expect(readme).toContain(longDesc);
   });
 
   it('should hide empty categories', () => {
@@ -209,24 +322,6 @@ describe('generateReadme', () => {
     };
     const readme = generateReadme(data);
     expect(readme).not.toContain('## 🔧 工具集成');
-    expect(readme).not.toContain('暂无仓库');
-  });
-
-  it('should format stars with locale string', () => {
-    const data: NavigationData = {
-      generated_at: '2025-06-15T12:00:00Z',
-      source: 'github',
-      schema_version: '1.0.0',
-      categories: [
-        {
-          key: 'other',
-          label: '其他',
-          items: [mockNavItem({ name: 'star-repo', stars: 12345 })],
-        },
-      ],
-    };
-    const readme = generateReadme(data);
-    expect(readme).toContain('⭐ 12,345');
   });
 
   it('should contain category breakdown table', () => {
