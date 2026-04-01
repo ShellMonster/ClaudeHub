@@ -393,22 +393,21 @@
       ? '<span class="card-badge-new">NEW</span>'
       : '';
 
-    const tagsHtml = (item.tags || []).slice(0, 4).map(tag => {
+    const tagsHtml = (item.tags || []).slice(0, 3).map(tag => {
       const tagClass = currentFilter.tags.includes(tag) ? 'card-tag active' : 'card-tag';
-      return `<span class="${tagClass}" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</span>`;
+      return '<span class="' + tagClass + '" data-tag="' + escapeHtml(tag) + '">' + escapeHtml(tag) + '</span>';
     }).join('');
 
-    card.innerHTML = `
-      <div class="card-header">
-        <span class="card-name">${displayName}${newBadge}</span>
-        <span class="card-stars">${formatStars(item.stars)}</span>
-      </div>
-      <p class="card-desc">${displayDesc}</p>
-      <div class="card-footer">
-        <div class="card-tags">${tagsHtml}</div>
-        <span class="card-meta">${escapeHtml(item.owner)} · ${formatDate(item.updated_at)}</span>
-      </div>
-    `;
+    card.innerHTML =
+      '<div class="card-row">' +
+        '<span class="card-name">' + displayName + newBadge + '</span>' +
+        '<span class="card-stars">' + formatStars(item.stars) + '</span>' +
+      '</div>' +
+      '<div class="card-sub">' +
+        '<span class="card-desc-inline">' + displayDesc + '</span>' +
+        (tagsHtml ? '<span class="card-tags">' + tagsHtml + '</span>' : '') +
+        '<span class="card-meta">' + escapeHtml(item.owner) + ' · ' + formatDate(item.updated_at) + '</span>' +
+      '</div>';
 
     renderedCards.set(item.id, card);
     return card;
