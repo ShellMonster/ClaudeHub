@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code 导航</title>
+  <meta name="description" content="Claude Code 生态资源导航 - 发现优质的 Claude Code 相关开源项目、工具、教程和插件">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 侧边栏 -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <h1 class="logo">🔍 Claude Code 导航</h1>
+      <button id="sidebar-close" class="sidebar-close" aria-label="关闭侧边栏">✕</button>
+    </div>
+    <div class="sidebar-stats" id="stats">
+      <!-- JS renders: 8,473 repos · 11 categories -->
+    </div>
+    <nav class="sidebar-nav" id="category-nav">
+      <!-- JS renders category list -->
+    </nav>
+    <div class="sidebar-footer">
+      <a href="https://github.com/ShellMonster/ClaudeHub" target="_blank" rel="noopener">GitHub 仓库</a>
+      <span id="last-updated"></span>
+    </div>
+  </aside>
+
+  <!-- 主内容区 -->
+  <main class="main">
+    <!-- 顶部栏 -->
+    <header class="topbar">
+      <button id="sidebar-toggle" class="sidebar-toggle" aria-label="打开侧边栏">☰</button>
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="搜索项目名称、描述、标签..." autocomplete="off">
+        <kbd class="search-shortcut">/</kbd>
+      </div>
+      <div class="topbar-actions">
+        <select id="sort-select" class="sort-select">
+          <option value="stars">按 Star 数</option>
+          <option value="updated">按更新时间</option>
+          <option value="score">按评分</option>
+          <option value="name">按名称</option>
+        </select>
+        <button id="dark-toggle" class="dark-toggle" aria-label="切换暗黑模式">🌙</button>
+      </div>
+    </header>
+
+    <!-- 筛选标签栏 -->
+    <div class="filter-bar" id="filter-bar">
+      <!-- JS renders active filters -->
+    </div>
+
+    <!-- 内容区 -->
+    <div class="content" id="content">
+      <!-- 加载状态 -->
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>正在加载资源数据...</p>
+      </div>
+      <!-- JS renders category sections with repo cards -->
+    </div>
+
+    <!-- 空状态 -->
+    <div class="empty-state" id="empty-state" style="display:none">
+      <p class="empty-icon">🔍</p>
+      <p class="empty-text">没有找到匹配的项目</p>
+      <p class="empty-hint">试试其他关键词或清除筛选条件</p>
+    </div>
+  </main>
+
+  <!-- 返回顶部 -->
+  <button id="back-to-top" class="back-to-top" aria-label="返回顶部">↑</button>
+
+  <script src="app.js"></script>
+</body>
+</html>
