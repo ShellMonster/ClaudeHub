@@ -241,8 +241,13 @@ export function deduplicate(
   const relevant = repos.filter((repo) => isRelevantToClaudeCode(repo));
   console.info(`[dedup] 相关性过滤: ${relevant.length}/${repos.length} 个仓库与 Claude Code 相关`);
 
+  // ── 第 0.5 步：过滤低星仓库（减少噪音） ──────────────────────
+  const MIN_STARS = 3;
+  const starred = relevant.filter((repo) => repo.stargazers_count >= MIN_STARS);
+  console.info(`[dedup] 星数过滤(>=${MIN_STARS}): ${starred.length}/${relevant.length} 个仓库保留`);
+
   // ── 第 1 步：排除泄露源 ────────────────────────────────────
-  const nonLeak = relevant.filter((repo) => !isLeakMirror(repo));
+  const nonLeak = starred.filter((repo) => !isLeakMirror(repo));
 
   // ── 第 2 步：基于 ID 去重 + 相同描述保留高星 ────────────────
   const seenIds = new Set<number>();

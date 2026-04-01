@@ -118,7 +118,7 @@ describe('deduplicate', () => {
           id: 1,
           full_name: 'user/fork-no-parent',
           fork: true,
-          stargazers_count: 1,
+          stargazers_count: 10,
         }),
       ];
 
@@ -133,7 +133,7 @@ describe('deduplicate', () => {
           id: 1,
           full_name: 'user/original-repo',
           fork: false,
-          stargazers_count: 1,
+          stargazers_count: 5,
         }),
       ];
 

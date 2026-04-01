@@ -1013,3 +1013,59 @@ mark {
   white-space: nowrap;
   border: 0;
 }
+
+/* ==================== Sub-Category (Other) ==================== */
+.sub-category-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.sub-cat-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.sub-cat-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.sub-cat-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 500;
+}
+
+.sub-cat-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 20px 0 10px 4px;
+  padding-left: 10px;
+  border-left: 3px solid var(--cat-other, var(--accent));
+}
+
+.sub-cat-title .cat-count {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.sub-cat-group {
+  margin-bottom: 8px;
+}

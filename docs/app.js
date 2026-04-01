@@ -273,6 +273,11 @@
     `;
     section.appendChild(title);
 
+    if (category.key === 'other' && items.length > 50) {
+      renderOtherSubCategories(section, items, category.key);
+      return section;
+    }
+
     const grid = document.createElement('div');
     grid.className = 'card-grid';
 
@@ -316,6 +321,153 @@
     grid.appendChild(fragment);
     button.remove();
     largeCategories.delete(category.key);
+  }
+
+  // ==================== "Other" Sub-Category Logic ====================
+
+  /**
+   * 其他分类的子分类规则
+   * 基于仓库的 tags 字段自动分组
+   */
+  const OTHER_SUB_CATEGORIES = [
+    { key: 'agent', label: 'Agent 框架', matchTags: ['ai-agent', 'ai-agents', 'agentic', 'agent', 'agents', 'multi-agent'] },
+    { key: 'automation', label: '自动化工作流', matchTags: ['automation', 'workflow', 'workflows', 'ci-cd', 'ci/cd'] },
+    { key: 'template', label: '模板/脚手架', matchTags: ['template', 'starter', 'boilerplate', 'scaffold', 'cookiecutter'] },
+    { key: 'frontend', label: '前端示例', matchTags: ['html', 'css', 'react', 'vue', 'svelte', 'nextjs', 'nuxt'] },
+    { key: 'plugin', label: 'Claude Code 插件', matchTags: ['claude-code-plugin', 'agent-skills', 'claude-skills', 'claude-code-skill', 'claude-plugin'] },
+    { key: 'mcp', label: 'MCP 工具', matchTags: ['mcp', 'mcp-server', 'mcp-server'] },
+    { key: 'backend', label: '后端开发', matchTags: ['python', 'go', 'rust', 'java', 'golang', 'nodejs', 'typescript', 'javascript'] },
+    { key: 'shell', label: 'Shell/CLI 工具', matchTags: ['shell', 'bash', 'zsh', 'cli', 'terminal'] },
+    { key: 'devops', label: 'DevOps/基础设施', matchTags: ['docker', 'kubernetes', 'k8s', 'terraform', 'devops', 'cloud', 'aws'] },
+    { key: 'data', label: '数据分析', matchTags: ['data-analysis', 'data-science', 'machine-learning', 'ml', 'ai'] },
+    { key: 'security', label: '安全工具', matchTags: ['security', 'pentest', 'cybersecurity', 'hacking'] },
+    { key: 'mobile', label: '移动开发', matchTags: ['android', 'ios', 'swift', 'kotlin', 'react-native', 'flutter'] },
+  ];
+
+  /**
+   * 根据仓库的 tags 分配子分类
+   */
+  function getSubCategory(item) {
+    const tags = (item.tags || []).map(t => t.toLowerCase());
+    for (const sub of OTHER_SUB_CATEGORIES) {
+      for (const matchTag of sub.matchTags) {
+        if (tags.includes(matchTag.toLowerCase())) {
+          return sub;
+        }
+      }
+    }
+    return null; // 未匹配到，归入"其他"
+  }
+
+  /**
+   * 将 items 按子分类分组
+   */
+  function groupBySubCategory(items) {
+    const groups = new Map();
+    const unmatched = [];
+
+    // 按定义顺序创建分组
+    for (const sub of OTHER_SUB_CATEGORIES) {
+      groups.set(sub.key, { ...sub, items: [] });
+    }
+    // 添加"其他"组
+    groups.set('misc', { key: 'misc', label: '其他项目', items: [] });
+
+    for (const item of items) {
+      const sub = getSubCategory(item);
+      if (sub) {
+        groups.get(sub.key).items.push(item);
+      } else {
+        unmatched.push(item);
+      }
+    }
+
+    // 只返回有内容的分组
+    const result = [];
+    for (const [, group] of groups) {
+      if (group.items.length > 0) {
+        result.push(group);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * 渲染"其他"分类的子分类
+   */
+  function renderOtherSubCategories(section, items, categoryKey) {
+    const subGroups = groupBySubCategory(items);
+
+    if (subGroups.length <= 1) {
+      // 如果只有"其他"一组，不显示子分类
+      return;
+    }
+
+    const subNav = document.createElement('div');
+    subNav.className = 'sub-category-nav';
+
+    subGroups.forEach(group => {
+      const btn = document.createElement('button');
+      btn.className = 'sub-cat-btn';
+      btn.dataset.subcat = group.key;
+      btn.textContent = `${group.label} (${group.items.length})`;
+      btn.addEventListener('click', () => {
+        // 切换激活状态
+        subNav.querySelectorAll('.sub-cat-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // 显示/隐藏子分类
+        section.querySelectorAll('.sub-cat-group').forEach(g => {
+          if (group.key === 'all') {
+            g.style.display = '';
+          } else {
+            g.style.display = g.dataset.subcat === group.key ? '' : 'none';
+          }
+        });
+      });
+      subNav.appendChild(btn);
+    });
+
+    // "显示全部"按钮
+    const allBtn = document.createElement('button');
+    allBtn.className = 'sub-cat-btn active';
+    allBtn.dataset.subcat = 'all';
+    allBtn.textContent = `全部 (${items.length})`;
+    allBtn.addEventListener('click', () => {
+      subNav.querySelectorAll('.sub-cat-btn').forEach(b => b.classList.remove('active'));
+      allBtn.classList.add('active');
+      section.querySelectorAll('.sub-cat-group').forEach(g => {
+        g.style.display = '';
+      });
+    });
+    subNav.insertBefore(allBtn, subNav.firstChild);
+
+    section.appendChild(subNav);
+
+    // 渲染每个子分类
+    subGroups.forEach(group => {
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'sub-cat-group';
+      groupDiv.dataset.subcat = group.key;
+
+      const subTitle = document.createElement('h3');
+      subTitle.className = 'sub-cat-title';
+      subTitle.innerHTML = `${escapeHtml(group.label)} <span class="cat-count">${group.items.length.toLocaleString()}</span>`;
+      groupDiv.appendChild(subTitle);
+
+      const grid = document.createElement('div');
+      grid.className = 'card-grid';
+
+      const renderCount = group.items.length;
+      for (let i = 0; i < renderCount; i++) {
+        const card = createCard(group.items[i], categoryKey);
+        grid.appendChild(card);
+      }
+
+      groupDiv.appendChild(grid);
+      section.appendChild(groupDiv);
+    });
   }
 
   function filterItems(items) {
