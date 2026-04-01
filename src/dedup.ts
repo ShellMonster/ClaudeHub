@@ -144,16 +144,90 @@ function normalizeDescription(desc: string | null): string {
   return desc.trim().toLowerCase();
 }
 
+// ─── Claude Code 相关性过滤 ──────────────────────────────────────
+
+/** Claude Code 生态关键词（中等信号，需要匹配多个） */
+const CLAUDE_CODE_MEDIUM_SIGNALS = [
+  'cli',
+  'terminal',
+  'agent',
+  'coding assistant',
+  'sourcemap',
+  'source code',
+  'npm',
+  'anthropic',
+  'skill',
+  'hook',
+  'mcp',
+  'plugin',
+  'slash command',
+] as const;
+
+/**
+ * 判断仓库是否与 Claude Code（Anthropic CLI 工具）相关
+ *
+ * 相关性规则：
+ * - 强信号（任一匹配即相关）：名称/描述含 "claude code"、"claude-code"、"claudecode"、"claude_code"
+ * - 强信号：topics 含 "claude-code" 或 "claude-code-cli"
+ * - 中等信号（需 2+ 匹配）：描述含 "claude" + 生态关键词
+ * - 特殊信号：含 "openclaw" 或含 "codex" + "claude"
+ */
+export function isRelevantToClaudeCode(repo: GitHubRepo): boolean {
+  const name = repo.name.toLowerCase();
+  const desc = (repo.description ?? '').toLowerCase();
+  const text = `${name} ${desc}`;
+  const topics = repo.topics ?? [];
+
+  // ── 强信号：名称/描述直接包含 Claude Code 标识 ──
+  if (
+    text.includes('claude code') ||
+    text.includes('claude-code') ||
+    text.includes('claudecode') ||
+    text.includes('claude_code')
+  ) {
+    return true;
+  }
+
+  // ── 强信号：topics 包含 Claude Code 相关标签 ──
+  if (topics.includes('claude-code') || topics.includes('claude-code-cli')) {
+    return true;
+  }
+
+  // ── 特殊信号：OpenClaw（开源 Claude Code 替代方案）──
+  if (text.includes('openclaw')) {
+    return true;
+  }
+
+  // ── 特殊信号：codex + claude 组合 ──
+  if (text.includes('codex') && text.includes('claude')) {
+    return true;
+  }
+
+  // ── 中等信号：描述含 claude + 生态关键词（需 2+ 匹配）──
+  if (desc.includes('claude')) {
+    let matchCount = 0;
+    for (const signal of CLAUDE_CODE_MEDIUM_SIGNALS) {
+      if (desc.includes(signal)) {
+        matchCount++;
+      }
+    }
+    return matchCount >= 2;
+  }
+
+  return false;
+}
+
 // ─── 主函数 ────────────────────────────────────────────────────
 
 /**
  * 仓库去重与过滤
  *
  * 处理流程：
+ * 0. 过滤不相关仓库（Claude Code 相关性）
  * 1. 排除泄露源（纯镜像）
- * 2. 基于 ID 去重（首次出现优先）
- * 3. 过滤低价值 fork
- * 4. 相同描述保留高星仓库
+ * 2. 基于 ID 去重 + 相同描述保留高星
+ * 3. 相同描述保留高星（跨不同 ID 的仓库）
+ * 4. 过滤低价值 fork
  *
  * @param repos - 原始仓库列表
  * @param parentStarsMap - 可选的父仓库星数映射（repo.id → parentStars）
@@ -163,8 +237,12 @@ export function deduplicate(
   repos: GitHubRepo[],
   parentStarsMap?: Map<number, number>,
 ): GitHubRepo[] {
+  // ── 第 0 步：过滤不相关仓库 ────────────────────────────
+  const relevant = repos.filter((repo) => isRelevantToClaudeCode(repo));
+  console.info(`[dedup] 相关性过滤: ${relevant.length}/${repos.length} 个仓库与 Claude Code 相关`);
+
   // ── 第 1 步：排除泄露源 ────────────────────────────────────
-  const nonLeak = repos.filter((repo) => !isLeakMirror(repo));
+  const nonLeak = relevant.filter((repo) => !isLeakMirror(repo));
 
   // ── 第 2 步：基于 ID 去重 + 相同描述保留高星 ────────────────
   const seenIds = new Set<number>();
@@ -208,7 +286,7 @@ export function deduplicate(
     }
   }
 
-  // ── 第 4 步：过滤低价值 fork ────────────────────────────────
+  // ── 第 4 步：过滤低价值 fork ────────────────────────────────────────
   const result: GitHubRepo[] = [];
 
   for (const repo of descMap.values()) {

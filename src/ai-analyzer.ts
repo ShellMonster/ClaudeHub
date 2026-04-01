@@ -1,8 +1,8 @@
 /**
- * AI 分析器 — 使用 Anthropic 兼容 API 分析 GitHub 仓库
+ * AI 分析器 — 使用 OpenAI 兼容 API 分析 GitHub 仓库
  *
  * 功能：
- * - 调用第三方 Anthropic 兼容 API 进行仓库分类
+ * - 调用第三方 OpenAI 兼容 API 进行仓库分类
  * - 支持重试（指数退避）和速率限制
  * - API 不可用时自动降级到基于规则的关键词匹配
  */
@@ -59,12 +59,20 @@ async function enforceRateLimit(): Promise<void> {
  */
 function buildPrompt(repo: GitHubRepo): { system: string; user: string } {
   const system = `You are a GitHub repository classifier. You MUST respond with ONLY a valid JSON object, no markdown, no explanation, no code fences. The JSON must have exactly these fields:
-- "category": one of [analysis, tutorial, book_or_longform, awesome_list, reimplementation, tooling, security, discussion_archive, other]
+- "category": one of [source_analysis, reverse_engineering, tutorial, skill_plugin, tooling, security, awesome_list, book_or_longform, reimplementation, discussion_archive, other]
 - "tags": array of 2-5 relevant tags (strings)
 - "summary": one-line description (max 100 chars, in English)
 - "score": integer from 1 to 5
 - "mirror_risk": boolean (true if appears to be source code leak or unauthorized mirror)
-- "original_analysis_likelihood": one of "high", "medium", "low"`;
+- "original_analysis_likelihood": one of "high", "medium", "low"
+
+Classification rules:
+- "source_analysis": repos that analyze Claude Code's architecture, source code, internals, prompts, or system design
+- "reverse_engineering": repos that reverse engineer, decompile, or decode Claude Code's obfuscated/minified source
+- "skill_plugin": repos that provide Claude Code skills (.md), plugins, MCP servers, or slash commands
+- "tooling": repos that provide CLI tools, extensions, wrappers, dashboards, or integrations for Claude Code
+- "tutorial": repos that teach how to use Claude Code (courses, guides, workshops, examples)
+- "security": repos focused on security auditing, vulnerability research, or pentesting with/for Claude Code`;
 
   const user = `Analyze this GitHub repository and classify it:
 
@@ -83,29 +91,33 @@ Return ONLY the JSON object.`;
 // ─── AI API 调用 ──────────────────────────────────────────────────────
 
 /**
- * 调用 Anthropic 兼容的 Messages API
+ * 调用 OpenAI 兼容的 Chat Completions API
+ *
+ * 支持任何 OpenAI 格式兼容的第三方 API（如 Gemini、GLM 等）
+ * 环境变量：ANTHROPIC_BASE_URL（API 地址）、ANTHROPIC_API_KEY、ANTHROPIC_MODEL
  *
  * @returns AI 返回的原始文本
  * @throws 网络错误或超过重试次数
  */
-async function callAnthropicApi(
+async function callApi(
   config: { baseUrl: string; apiKey: string; model: string },
   repo: GitHubRepo
 ): Promise<string> {
   const { system, user } = buildPrompt(repo);
-  const url = `${config.baseUrl.replace(/\/+$/, '')}/v1/messages`;
+  const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
   const body = {
     model: config.model,
     max_tokens: 512,
-    system,
-    messages: [{ role: 'user', content: user }],
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
   };
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-api-key': config.apiKey,
-    'anthropic-version': '2023-06-01',
+    'Authorization': `Bearer ${config.apiKey}`,
   };
 
   let lastError: Error | null = null;
@@ -147,16 +159,16 @@ async function callAnthropicApi(
       }
 
       const data = (await response.json()) as {
-        content: Array<{ type: string; text: string }>;
+        choices: Array<{ message: { content: string } }>;
       };
 
-      // 提取文本内容
-      const textBlock = data.content?.find((block) => block.type === 'text');
-      if (!textBlock?.text) {
-        throw new Error('API 返回内容格式异常：缺少 text block');
+      // 提取文本内容（OpenAI 格式）
+      const content = data.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error('API 返回内容格式异常：缺少 choices');
       }
 
-      return textBlock.text;
+      return content;
     } catch (error) {
       // 网络错误 — 重试
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -218,13 +230,15 @@ function parseAIResponse(text: string): AIAnalysisResult | null {
 
 /** 各分类的关键词映射 */
 const CATEGORY_KEYWORDS: Record<CategoryKey, string[]> = {
-  analysis: ['analysis', 'analyze', '源码分析', 'source code', 'deep dive', 'walkthrough', '解读', '剖析'],
-  tutorial: ['tutorial', 'guide', 'course', 'learn', 'getting started', '教程', '指南', '入门', 'handbook'],
-  book_or_longform: ['book', 'ebook', 'readme', 'longform', 'series', '书籍', '手册', 'cookbook'],
+  source_analysis: ['analysis', 'analyze', 'source code', 'deep dive', 'walkthrough', '解读', '剖析', 'architecture', 'internals', 'source-analysis', '源码分析', 'code-analysis'],
+  reverse_engineering: ['reverse engineer', 'decompile', 'deobfuscat', 'reverse-engineering', '逆向', '反编译', 'decoded', 'unpacked', 'sourcemap'],
+  tutorial: ['tutorial', 'guide', 'course', 'learn', 'getting started', '教程', '指南', '入门', 'handbook', 'workshop', 'mastery'],
+  skill_plugin: ['skill', 'plugin', 'mcp server', 'mcp-server', 'slash command', 'agent skill', ' Skills', 'SKILL.md', 'agent-skill'],
+  tooling: ['tool', 'cli', 'extension', 'wrapper', 'sdk', 'dashboard', '工具', 'monitor', 'analyzer', 'vscode', 'integration'],
+  security: ['security', 'vulnerability', 'exploit', 'pentest', 'ctf', '安全', '漏洞', 'red team', 'audit', 'scan'],
   awesome_list: ['awesome', 'curated', 'collection', 'list-of', 'best-of', '精选'],
-  reimplementation: ['reimpl', 'clone', 'from scratch', 'build your own', '重新实现', '自制', 'write your own'],
-  tooling: ['tool', 'cli', 'plugin', 'extension', 'wrapper', 'sdk', '工具', '脚手架', 'scaffold', 'generator'],
-  security: ['security', 'vulnerability', 'exploit', 'pentest', 'ctf', '安全', '漏洞', 'red team'],
+  book_or_longform: ['book', 'ebook', 'longform', 'series', '书籍', '手册', 'cookbook'],
+  reimplementation: ['reimpl', 'clone', 'from scratch', 'build your own', '重新实现', '自制', 'write your own', 'nano-'],
   discussion_archive: ['discussion', 'archive', 'faq', 'issues', 'forum', '讨论', '归档', 'weekly'],
   other: [],
 };
@@ -315,7 +329,7 @@ export async function analyzeRepo(repo: GitHubRepo): Promise<AIAnalysisResult> {
   }
 
   try {
-    const rawText = await callAnthropicApi(config, repo);
+    const rawText = await callApi(config, repo);
     const result = parseAIResponse(rawText);
 
     if (result) {

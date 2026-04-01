@@ -1,23 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { deduplicate, normalizeUrl } from '../src/dedup.js';
+import { deduplicate, normalizeUrl, isRelevantToClaudeCode } from '../src/dedup.js';
 import type { GitHubRepo } from '../src/types.js';
 
-/** 创建测试用 GitHubRepo 的工厂函数 */
+/** 创建测试用 GitHubRepo 的工厂函数（默认包含 Claude Code 相关信息以通过相关性过滤） */
 function makeRepo(overrides: Partial<GitHubRepo> & Pick<GitHubRepo, 'id' | 'full_name'>): GitHubRepo {
   const [owner, name] = overrides.full_name.split('/');
+  const desc = overrides.description !== undefined ? overrides.description : `Claude Code tool: ${overrides.full_name}`;
   return {
     name: name ?? overrides.full_name,
     owner: { login: owner ?? 'test' },
     html_url: `https://github.com/${overrides.full_name}`,
-    description: null,
     stargazers_count: 100,
     forks_count: 10,
     updated_at: '2025-01-01T00:00:00Z',
     language: 'TypeScript',
-    topics: [],
+    topics: overrides.topics ?? [],
     archived: false,
     fork: false,
     ...overrides,
+    description: desc,
   };
 }
 
@@ -38,10 +39,10 @@ describe('deduplicate', () => {
     });
 
     it('keeps higher-starred version when same ID appears', () => {
-      const repos = [
-        makeRepo({ id: 1, full_name: 'user/repo-a', stargazers_count: 50 }),
-        makeRepo({ id: 1, full_name: 'user/repo-a', stargazers_count: 200 }),
-      ];
+        const repos = [
+      makeRepo({ id: 1, full_name: 'user/repo-a', stargazers_count: 50 }),
+      makeRepo({ id: 1, full_name: 'user/repo-b', stargazers_count: 200 }),
+    ];
 
       const result = deduplicate(repos);
 
@@ -101,7 +102,7 @@ describe('deduplicate', () => {
           full_name: 'user/fork-with-desc',
           fork: true,
           stargazers_count: 5,
-          description: 'This is a unique and detailed fork description with custom changes',
+          description: 'This is a unique and detailed Claude Code fork description with custom changes',
         }),
       ];
 
@@ -192,7 +193,7 @@ describe('deduplicate', () => {
         makeRepo({
           id: 1,
           full_name: 'user/sourcemap-analysis',
-          description: 'Security analysis of sourcemap leaks',
+          description: 'Security analysis of Claude Code sourcemap leaks',
         }),
       ];
 
@@ -205,7 +206,7 @@ describe('deduplicate', () => {
         makeRepo({
           id: 1,
           full_name: 'user/source-code-leak-research',
-          description: 'Research into source code leak prevention',
+          description: 'Research into Claude Code source code leak prevention',
         }),
       ];
 
@@ -218,7 +219,7 @@ describe('deduplicate', () => {
         makeRepo({
           id: 1,
           full_name: 'user/awesome-tool',
-          description: 'A great development tool',
+          description: 'A great Claude Code development tool',
         }),
       ];
 
@@ -255,13 +256,13 @@ describe('deduplicate', () => {
         makeRepo({
           id: 1,
           full_name: 'user/repo-a',
-          description: 'Tool for X',
+          description: 'Claude Code tool for X',
           stargazers_count: 50,
         }),
         makeRepo({
           id: 2,
           full_name: 'user/repo-b',
-          description: 'Tool for Y',
+          description: 'Claude Code tool for Y',
           stargazers_count: 500,
         }),
       ];
@@ -295,8 +296,8 @@ describe('deduplicate', () => {
 
     it('keeps both repos with null descriptions', () => {
       const repos = [
-        makeRepo({ id: 1, full_name: 'user/repo-a', description: null }),
-        makeRepo({ id: 2, full_name: 'user/repo-b', description: null }),
+        makeRepo({ id: 1, full_name: 'user/repo-a', description: null, topics: ['claude-code'] }),
+        makeRepo({ id: 2, full_name: 'user/repo-b', description: null, topics: ['claude-code'] }),
       ];
 
       const result = deduplicate(repos);
@@ -308,12 +309,12 @@ describe('deduplicate', () => {
   describe('Combined scenarios', () => {
     it('processes a realistic mixed input', () => {
       const repos = [
-        makeRepo({ id: 1, full_name: 'user/awesome-claude', stargazers_count: 1000, description: 'Awesome Claude tools' }),
-        makeRepo({ id: 1, full_name: 'user/awesome-claude', stargazers_count: 800, description: 'Awesome Claude tools' }),
-        makeRepo({ id: 2, full_name: 'user/sourcemap-dump', description: 'sourcemap leak dump' }),
-        makeRepo({ id: 3, full_name: 'user/claude-fork', fork: true, stargazers_count: 5, description: 'hi' }),
-        makeRepo({ id: 4, full_name: 'user/claude-analysis', stargazers_count: 200, description: 'sourcemap analysis report' }),
-        makeRepo({ id: 5, full_name: 'user/claude-tool', stargazers_count: 300, description: 'Awesome Claude tools' }),
+        makeRepo({ id: 1, full_name: 'user/awesome-claude', stargazers_count: 1000, description: 'Awesome Claude Code tools' }),
+        makeRepo({ id: 1, full_name: 'user/awesome-claude', stargazers_count: 800, description: 'Awesome Claude Code tools' }),
+        makeRepo({ id: 2, full_name: 'user/sourcemap-dump', description: 'Claude Code sourcemap leak dump' }),
+        makeRepo({ id: 3, full_name: 'user/claude-fork', fork: true, stargazers_count: 5, description: 'fork', topics: ['claude-code'] }),
+        makeRepo({ id: 4, full_name: 'user/claude-analysis', stargazers_count: 200, description: 'Claude Code sourcemap analysis report' }),
+        makeRepo({ id: 5, full_name: 'user/claude-tool', stargazers_count: 300, description: 'Awesome Claude Code tools' }),
       ];
 
       const parentStarsMap = new Map<number, number>([[3, 1000]]);

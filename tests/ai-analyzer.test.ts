@@ -69,13 +69,15 @@ function mockFetchNetworkError(): void {
 
 function createAPIResponse(text: string) {
   return {
-    id: 'msg_test',
-    type: 'message',
-    role: 'assistant',
-    content: [{ type: 'text', text }],
+    id: 'chatcmpl-test',
+    object: 'chat.completion',
     model: 'test-model',
-    stop_reason: 'end_turn',
-    usage: { input_tokens: 100, output_tokens: 50 },
+    choices: [{
+      index: 0,
+      message: { role: 'assistant', content: text },
+      finish_reason: 'stop',
+    }],
+    usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
   };
 }
 
@@ -363,16 +365,16 @@ describe('analyzeRepo', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, options] = fetchSpy.mock.calls[0];
-    expect(url).toBe('https://api.example.com/v1/messages');
+    expect(url).toBe('https://api.example.com/chat/completions');
     expect(options.method).toBe('POST');
     expect(options.headers['Content-Type']).toBe('application/json');
-    expect(options.headers['x-api-key']).toBe('test-key-123');
-    expect(options.headers['anthropic-version']).toBe('2023-06-01');
+    expect(options.headers['Authorization']).toBe('Bearer test-key-123');
 
     const body = JSON.parse(options.body);
     expect(body.model).toBe('test-model');
     expect(body.messages).toBeInstanceOf(Array);
-    expect(body.messages[0].role).toBe('user');
+    expect(body.messages[0].role).toBe('system');
+    expect(body.messages[1].role).toBe('user');
   });
 
   it('should handle AI response with markdown code fences', async () => {

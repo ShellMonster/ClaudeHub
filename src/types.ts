@@ -1,24 +1,28 @@
-/** 仓库分类键（9 个类别） */
+/** 仓库分类键（11 个类别） */
 export type CategoryKey =
-  | 'analysis'
-  | 'tutorial'
-  | 'book_or_longform'
-  | 'awesome_list'
-  | 'reimplementation'
-  | 'tooling'
-  | 'security'
-  | 'discussion_archive'
-  | 'other';
+  | 'source_analysis'      // 源码分析 — deep analysis of Claude Code source
+  | 'reverse_engineering'  // 逆向工程 — reverse engineering Claude Code
+  | 'tutorial'             // 教程指南 — tutorials, guides, courses
+  | 'skill_plugin'         // Skills/插件 — Claude Code skills, plugins, MCP servers
+  | 'tooling'              // 工具集成 — CLI tools, extensions, integrations
+  | 'security'             // 安全研究 — security research, pentesting
+  | 'awesome_list'         // Awesome 列表
+  | 'book_or_longform'     // 书籍/长文
+  | 'reimplementation'     // 重新实现 — clones, from-scratch implementations
+  | 'discussion_archive'   // 讨论归档
+  | 'other';               // 其他
 
 /** 分类键 → 人类可读标签映射 */
 export const CATEGORY_LABELS: Record<CategoryKey, string> = {
-  analysis: '源码分析',
+  source_analysis: '源码分析',
+  reverse_engineering: '逆向工程',
   tutorial: '教程指南',
-  book_or_longform: '书籍/长文',
-  awesome_list: 'Awesome 列表',
-  reimplementation: '重新实现',
+  skill_plugin: 'Skills/插件',
   tooling: '工具集成',
   security: '安全研究',
+  awesome_list: 'Awesome 列表',
+  book_or_longform: '书籍/长文',
+  reimplementation: '重新实现',
   discussion_archive: '讨论归档',
   other: '其他',
 };

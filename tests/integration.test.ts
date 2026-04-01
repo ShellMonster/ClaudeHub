@@ -146,7 +146,7 @@ describe('Integration: full pipeline', () => {
     expect(readmeWriteCall).toBeDefined();
     const readmeContent = readmeWriteCall![1] as string;
     expect(readmeContent).toContain('Claude Code Navigation');
-    expect(readmeContent).toContain('Statistics');
+    expect(readmeContent).toContain('Overview');
   });
 
   it('should categorize repos correctly', async () => {

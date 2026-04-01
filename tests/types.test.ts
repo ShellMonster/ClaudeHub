@@ -9,14 +9,15 @@ import {
 import type { CategoryKey, NavItem, GitHubRepo } from '../src/types.js';
 
 describe('CATEGORY_LABELS', () => {
-  it('should have exactly 9 categories', () => {
-    expect(Object.keys(CATEGORY_LABELS)).toHaveLength(9);
+  it('should have exactly 11 categories', () => {
+    expect(Object.keys(CATEGORY_LABELS)).toHaveLength(11);
   });
 
   it('should map every CategoryKey to a non-empty string', () => {
     const keys: CategoryKey[] = [
-      'analysis', 'tutorial', 'book_or_longform', 'awesome_list',
-      'reimplementation', 'tooling', 'security', 'discussion_archive', 'other',
+      'source_analysis', 'reverse_engineering', 'tutorial',
+      'skill_plugin', 'tooling', 'security', 'awesome_list',
+      'book_or_longform', 'reimplementation', 'discussion_archive', 'other',
     ];
     for (const key of keys) {
       expect(CATEGORY_LABELS[key].length).toBeGreaterThan(0);
@@ -26,14 +27,17 @@ describe('CATEGORY_LABELS', () => {
 
 describe('isCategoryKey', () => {
   it('should return true for valid category keys', () => {
-    expect(isCategoryKey('analysis')).toBe(true);
+    expect(isCategoryKey('source_analysis')).toBe(true);
     expect(isCategoryKey('tutorial')).toBe(true);
     expect(isCategoryKey('other')).toBe(true);
+    expect(isCategoryKey('reverse_engineering')).toBe(true);
+    expect(isCategoryKey('skill_plugin')).toBe(true);
   });
 
   it('should return false for invalid strings', () => {
     expect(isCategoryKey('invalid')).toBe(false);
     expect(isCategoryKey('')).toBe(false);
+    expect(isCategoryKey('analysis')).toBe(false); // 旧分类名，已废弃
   });
 });
 
