@@ -4,8 +4,7 @@ node_modules/
 # Build output
 dist/
 
-# Docs data (copied from data/ during build)
-docs/data/
+
 
 # Environment variables
 .env

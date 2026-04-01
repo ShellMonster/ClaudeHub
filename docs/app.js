@@ -1,6 +1,5 @@
 /**
- * GitHub Pages Navigation Site - Main Application
- * Handles data loading, rendering, search, filtering, and interactions
+ * Claude Code Navigation - Main Application
  */
 (function () {
   'use strict';
@@ -15,36 +14,27 @@
   };
   let dom = {};
   let searchDebounceTimer = null;
-  let renderedCards = new Map(); // Track rendered cards for updates
+  let renderedCards = new Map();
   const LARGE_CATEGORY_THRESHOLD = 200;
-  const largeCategories = new Map(); // Track which categories have "show more" buttons
+  const largeCategories = new Map();
 
   // ==================== Utility Functions ====================
 
-  /**
-   * Format star count (e.g., 1234 → 1.2K)
-   */
   function formatStars(stars) {
     if (stars >= 10000) {
-      return '★ ' + (stars / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+      return (stars / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
     }
     if (stars >= 1000) {
-      return '★ ' + (stars / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+      return (stars / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
     }
-    return '★ ' + stars;
+    return stars.toString();
   }
 
-  /**
-   * Format date to YYYY-MM-DD
-   */
   function formatDate(dateString) {
     const date = new Date(dateString);
     return date.toISOString().split('T')[0];
   }
 
-  /**
-   * Check if date is within last 7 days
-   */
   function isWithinLast7Days(dateString) {
     const date = new Date(dateString);
     const now = new Date();
@@ -52,9 +42,6 @@
     return diffDays <= 7;
   }
 
-  /**
-   * Escape HTML to prevent XSS
-   */
   function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -62,9 +49,6 @@
     return div.innerHTML;
   }
 
-  /**
-   * Highlight matching text
-   */
   function highlightText(text, searchTerm) {
     if (!searchTerm || !text) return escapeHtml(text);
     const escapedSearch = escapeHtml(searchTerm).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -72,9 +56,6 @@
     return escapeHtml(text).replace(regex, '<mark>$1</mark>');
   }
 
-  /**
-   * Debounce function
-   */
   function debounce(func, wait) {
     return function executedFunction(...args) {
       const later = () => {
@@ -86,9 +67,6 @@
     };
   }
 
-  /**
-   * Get URL parameters
-   */
   function getUrlParams() {
     const params = new URLSearchParams(window.location.search);
     return {
@@ -99,9 +77,6 @@
     };
   }
 
-  /**
-   * Update URL without reloading
-   */
   function updateUrl() {
     const params = new URLSearchParams();
     if (currentFilter.search) params.set('q', currentFilter.search);
@@ -115,6 +90,30 @@
     history.replaceState(currentFilter, '', newUrl);
   }
 
+  // ==================== Counter Animation ====================
+
+  function animateCounter(element, target, duration = 800) {
+    const start = 0;
+    const startTime = performance.now();
+
+    function update(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const current = Math.floor(start + (target - start) * easeOut);
+
+      element.textContent = current.toLocaleString();
+
+      if (progress < 1) {
+        requestAnimationFrame(update);
+      } else {
+        element.textContent = target.toLocaleString();
+      }
+    }
+
+    requestAnimationFrame(update);
+  }
+
   // ==================== DOM Cache ====================
 
   function cacheDom() {
@@ -122,6 +121,7 @@
       sidebar: document.getElementById('sidebar'),
       sidebarClose: document.getElementById('sidebar-close'),
       sidebarToggle: document.getElementById('sidebar-toggle'),
+      sidebarOverlay: document.getElementById('sidebar-overlay'),
       stats: document.getElementById('stats'),
       categoryNav: document.getElementById('category-nav'),
       lastUpdated: document.getElementById('last-updated'),
@@ -162,7 +162,7 @@
 
   function showError(message) {
     if (dom.content) {
-      dom.content.innerHTML = '<div class="error-state">' + message + '</div>';
+      dom.content.innerHTML = '<div class="error-state"><strong>出错了</strong>' + message + '</div>';
     }
   }
 
@@ -175,9 +175,19 @@
     const totalCategories = window.navData.categories.length;
 
     dom.stats.innerHTML = `
-      <div class="stat-item"><span class="stat-number">${totalRepos.toLocaleString()}</span><span class="stat-label">项目</span></div>
-      <div class="stat-item"><span class="stat-number">${totalCategories}</span><span class="stat-label">分类</span></div>
+      <div class="stat-item">
+        <span class="stat-number" data-target="${totalRepos}">0</span>
+        <span class="stat-label">项目</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-number" data-target="${totalCategories}">0</span>
+        <span class="stat-label">分类</span>
+      </div>
     `;
+
+    dom.stats.querySelectorAll('.stat-number').forEach(el => {
+      animateCounter(el, parseInt(el.dataset.target));
+    });
   }
 
   function renderSidebarCategories() {
@@ -185,13 +195,13 @@
 
     const fragment = document.createDocumentFragment();
 
-    // "All" item
-    const allItem = createNavItem('all', '全部', window.navData.categories.reduce((sum, cat) => sum + cat.items.length, 0), '');
+    const allItem = createNavItem('all', '全部项目',
+      window.navData.categories.reduce((sum, cat) => sum + cat.items.length, 0), '');
     fragment.appendChild(allItem);
 
-    // Category items
     window.navData.categories.forEach(cat => {
-      const item = createNavItem(cat.key, cat.label, cat.items.length, `var(--cat-${cat.key})`);
+      const item = createNavItem(cat.key, cat.label, cat.items.length,
+        `var(--cat-${cat.key})`);
       fragment.appendChild(item);
     });
 
@@ -204,11 +214,10 @@
     a.href = '#';
     a.className = 'nav-item' + (key === currentFilter.category ? ' active' : '');
     a.dataset.category = key;
-    a.innerHTML = `
-      <span class="nav-dot" style="background: ${color || 'var(--primary-color)'};"></span>
-      <span class="nav-label">${escapeHtml(label)}</span>
-      <span class="nav-count">${count.toLocaleString()}</span>
-    `;
+
+    const dot = color ? `<span class="nav-dot" style="background: ${color};"></span>` : '';
+    a.innerHTML = `${dot}<span class="nav-label">${escapeHtml(label)}</span><span class="nav-count">${count.toLocaleString()}</span>`;
+
     return a;
   }
 
@@ -225,13 +234,12 @@
     renderedCards.clear();
     largeCategories.clear();
 
-    // Filter categories
     const categories = currentFilter.category === 'all'
       ? window.navData.categories
       : window.navData.categories.filter(cat => cat.key === currentFilter.category);
 
-    categories.forEach(category => {
-      const section = renderCategorySection(category);
+    categories.forEach((category, index) => {
+      const section = renderCategorySection(category, index);
       if (section) {
         fragment.appendChild(section);
       }
@@ -243,8 +251,7 @@
     updateEmptyState();
   }
 
-  function renderCategorySection(category) {
-    // Filter and sort items
+  function renderCategorySection(category, sectionIndex) {
     let items = filterItems(category.items);
     items = sortItems(items);
 
@@ -255,6 +262,7 @@
     const section = document.createElement('section');
     section.className = 'category-section';
     section.id = 'cat-' + category.key;
+    section.style.animationDelay = (sectionIndex * 50) + 'ms';
 
     const title = document.createElement('h2');
     title.className = 'category-title';
@@ -268,25 +276,24 @@
     const grid = document.createElement('div');
     grid.className = 'card-grid';
 
-    // Lazy rendering for large categories
     const isLargeCategory = items.length > LARGE_CATEGORY_THRESHOLD;
-    const renderCount = isLargeCategory && currentFilter.category === 'all' && !currentFilter.search && currentFilter.tags.length === 0
+    const renderCount = isLargeCategory && currentFilter.category === 'all' &&
+      !currentFilter.search && currentFilter.tags.length === 0
       ? LARGE_CATEGORY_THRESHOLD
       : items.length;
 
     for (let i = 0; i < renderCount; i++) {
       const card = createCard(items[i], category.key);
+      card.style.animationDelay = (i * 30) + 'ms';
       grid.appendChild(card);
     }
 
     section.appendChild(grid);
 
-    // Add "Show More" button for large categories
     if (isLargeCategory && renderCount < items.length) {
-      const remaining = items.length - renderCount;
       const showMoreBtn = document.createElement('button');
       showMoreBtn.className = 'show-more-btn';
-      showMoreBtn.innerHTML = `查看更多 <span class="show-more-count">(显示全部 ${items.length.toLocaleString()} 个)</span>`;
+      showMoreBtn.innerHTML = `显示全部 ${items.length.toLocaleString()} 个项目`;
       showMoreBtn.dataset.category = category.key;
       showMoreBtn.dataset.rendered = renderCount;
       showMoreBtn.addEventListener('click', () => showMoreCards(category, items, grid, showMoreBtn));
@@ -313,14 +320,12 @@
 
   function filterItems(items) {
     return items.filter(item => {
-      // Tag filter (AND logic)
       if (currentFilter.tags.length > 0) {
         const itemTags = item.tags || [];
         const hasAllTags = currentFilter.tags.every(tag => itemTags.includes(tag));
         if (!hasAllTags) return false;
       }
 
-      // Search filter
       if (currentFilter.search) {
         const searchLower = currentFilter.search.toLowerCase();
         const searchable = [
@@ -372,10 +377,9 @@
     card.dataset.stars = item.stars;
     card.dataset.tags = (item.tags || []).join(',');
 
-    // Add conditional classes
-    if (item.stars >= 1000) card.classList.add('card-hot');
-    if (isWithinLast7Days(item.updated_at)) card.classList.add('card-new');
-    if (item.unavailable) card.classList.add('card-unavailable');
+    if (item.stars >= 1000) card.classList.add('hot');
+    if (isWithinLast7Days(item.updated_at)) card.classList.add('new');
+    if (item.unavailable) card.classList.add('unavailable');
 
     const displayName = currentFilter.search
       ? highlightText(item.name, currentFilter.search)
@@ -385,14 +389,18 @@
       ? highlightText(item.summary || item.description, currentFilter.search)
       : escapeHtml(item.summary || item.description || '');
 
-    const tagsHtml = (item.tags || []).map(tag => {
-      const tagClass = currentFilter.tags.includes(tag) ? 'tag active' : 'tag';
+    const newBadge = isWithinLast7Days(item.updated_at)
+      ? '<span class="card-badge-new">NEW</span>'
+      : '';
+
+    const tagsHtml = (item.tags || []).slice(0, 4).map(tag => {
+      const tagClass = currentFilter.tags.includes(tag) ? 'card-tag active' : 'card-tag';
       return `<span class="${tagClass}" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</span>`;
     }).join('');
 
     card.innerHTML = `
       <div class="card-header">
-        <span class="card-name">${displayName}</span>
+        <span class="card-name">${displayName}${newBadge}</span>
         <span class="card-stars">${formatStars(item.stars)}</span>
       </div>
       <p class="card-desc">${displayDesc}</p>
@@ -411,7 +419,7 @@
 
     const visibleCards = document.querySelectorAll('.card');
     if (visibleCards.length === 0) {
-      dom.emptyState.style.display = 'block';
+      dom.emptyState.style.display = 'flex';
       dom.content.style.display = 'none';
     } else {
       dom.emptyState.style.display = 'none';
@@ -453,11 +461,7 @@
 
     const items = dom.categoryNav.querySelectorAll('.nav-item');
     items.forEach(item => {
-      if (item.dataset.category === currentFilter.category) {
-        item.classList.add('active');
-      } else {
-        item.classList.remove('active');
-      }
+      item.classList.toggle('active', item.dataset.category === currentFilter.category);
     });
   }
 
@@ -481,7 +485,6 @@
     updateSidebarActiveState();
     renderContent();
 
-    // Scroll to section if not "all"
     if (category !== 'all') {
       const section = document.getElementById('cat-' + category);
       if (section) {
@@ -491,7 +494,6 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    // Close mobile sidebar
     closeSidebar();
   }
 
@@ -521,15 +523,15 @@
   // ==================== Sidebar (Mobile) ====================
 
   function openSidebar() {
+    dom.sidebar.classList.add('open');
+    dom.sidebarOverlay.classList.add('visible');
     document.body.classList.add('sidebar-open');
   }
 
   function closeSidebar() {
+    dom.sidebar.classList.remove('open');
+    dom.sidebarOverlay.classList.remove('visible');
     document.body.classList.remove('sidebar-open');
-  }
-
-  function toggleSidebar() {
-    document.body.classList.toggle('sidebar-open');
   }
 
   // ==================== Dark Mode ====================
@@ -539,10 +541,7 @@
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const isDark = saved !== null ? saved === 'true' : prefersDark;
 
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    }
-
+    document.documentElement.classList.toggle('dark', isDark);
     updateDarkModeIcon();
   }
 
@@ -564,11 +563,7 @@
     if (!dom.backToTop) return;
 
     const toggleVisibility = () => {
-      if (window.scrollY > 500) {
-        dom.backToTop.classList.add('visible');
-      } else {
-        dom.backToTop.classList.remove('visible');
-      }
+      dom.backToTop.classList.toggle('visible', window.scrollY > 500);
     };
 
     window.addEventListener('scroll', toggleVisibility, { passive: true });
@@ -581,7 +576,6 @@
   // ==================== Event Delegation ====================
 
   function initEventDelegation() {
-    // Category navigation
     if (dom.categoryNav) {
       dom.categoryNav.addEventListener('click', (e) => {
         const navItem = e.target.closest('.nav-item');
@@ -592,10 +586,9 @@
       });
     }
 
-    // Tag clicks on cards
     if (dom.content) {
       dom.content.addEventListener('click', (e) => {
-        const tag = e.target.closest('.tag');
+        const tag = e.target.closest('.card-tag');
         if (tag && tag.dataset.tag) {
           e.preventDefault();
           handleTagClick(tag.dataset.tag);
@@ -603,7 +596,6 @@
       });
     }
 
-    // Filter tag removal
     if (dom.filterBar) {
       dom.filterBar.addEventListener('click', (e) => {
         const removeBtn = e.target.closest('.filter-remove');
@@ -614,13 +606,11 @@
       });
     }
 
-    // Search input
     if (dom.searchInput) {
       dom.searchInput.addEventListener('input', debounce((e) => {
         handleSearch(e.target.value);
       }, 300));
 
-      // Focus on "/"
       document.addEventListener('keydown', (e) => {
         if (e.key === '/' && document.activeElement !== dom.searchInput) {
           e.preventDefault();
@@ -637,19 +627,16 @@
       });
     }
 
-    // Sort select
     if (dom.sortSelect) {
       dom.sortSelect.addEventListener('change', (e) => {
         handleSortChange(e.target.value);
       });
     }
 
-    // Dark mode toggle
     if (dom.darkToggle) {
       dom.darkToggle.addEventListener('click', toggleDarkMode);
     }
 
-    // Sidebar toggle
     if (dom.sidebarToggle) {
       dom.sidebarToggle.addEventListener('click', openSidebar);
     }
@@ -658,16 +645,9 @@
       dom.sidebarClose.addEventListener('click', closeSidebar);
     }
 
-    // Click outside sidebar to close (mobile)
-    document.addEventListener('click', (e) => {
-      if (document.body.classList.contains('sidebar-open')) {
-        const isSidebar = dom.sidebar && dom.sidebar.contains(e.target);
-        const isToggle = dom.sidebarToggle && dom.sidebarToggle.contains(e.target);
-        if (!isSidebar && !isToggle) {
-          closeSidebar();
-        }
-      }
-    });
+    if (dom.sidebarOverlay) {
+      dom.sidebarOverlay.addEventListener('click', closeSidebar);
+    }
   }
 
   // ==================== URL State Initialization ====================
@@ -680,7 +660,6 @@
     currentFilter.sort = params.sort;
     currentFilter.tags = params.tags;
 
-    // Update UI from URL
     if (dom.searchInput && params.q) {
       dom.searchInput.value = params.q;
     }
